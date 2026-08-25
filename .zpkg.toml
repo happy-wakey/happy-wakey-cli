@@ -11,7 +11,8 @@ vcs = "git"
 url = "https://github.com/happy-wakey/happy-wakey-cli"
 
 [dependencies]
-"shared-auth/shared-auth-clients" = "^0.1.0"
+"flags-2-env/flags-2-env" = "^0.3.0"
+"happy-wakey/happy-wakey-interfaces" = "^0.1.0"
 
 [targets.repository]
 dir = "."

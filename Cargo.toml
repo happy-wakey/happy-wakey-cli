@@ -9,10 +9,15 @@ repository = "https://github.com/happy-wakey/happy-wakey-cli"
 
 [dependencies]
 anyhow = "1"
-clap = { version = "4", features = ["derive", "env"] }
+chrono = { version = "0.4", features = ["clock"] }
+flags2env = { git = "https://github.com/flags-2-env/flags-2-env.git", rev = "b07214e30b4da675a0f591e362a2039cb47e9055" }
+futures-util = "0.3"
+happy-wakey-interfaces = { git = "https://github.com/happy-wakey/happy-wakey-interfaces.git", rev = "d6278ec8f6b2263678728b147a32dff92d52d8c8" }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "stream"] }
+serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-shared-auth-client = { git = "https://github.com/shared-auth/shared-auth-clients.git", rev = "7aab653a1822e26122a16f8d31e501815fe86beb", package = "shared-auth-client" }
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+uuid = { version = "1", features = ["v4"] }
 
 [lints.rust]
 unsafe_code = "forbid"
