@@ -1,0 +1,7 @@
+/target/
+.zed/
+zed_modules/
+.env
+.env.*
+*.log
+.DS_Store

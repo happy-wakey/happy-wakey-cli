@@ -1,0 +1,26 @@
+[package]
+org = "happy-wakey"
+name = "happy-wakey-cli"
+version = "0.1.0"
+description = "Shared Auth-aware command line client for Happy Wakey"
+license = "MIT"
+keywords = ["cli", "alarms", "shared-auth", "rust"]
+
+[package.repository]
+vcs = "git"
+url = "https://github.com/happy-wakey/happy-wakey-cli"
+
+[dependencies]
+"shared-auth/shared-auth-clients" = "^0.1.0"
+
+[targets.repository]
+dir = "."
+adapter = "rust"
+
+[publish]
+include_readme = true
+tag_format = "v{version}"
+exclude = [".env", ".env.*", ".zed/**", "zed_modules/**", "target/**", "**/*.log", ".DS_Store"]
+
+[scripts]
+test = "cargo test --locked"

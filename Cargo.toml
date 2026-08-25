@@ -1,0 +1,18 @@
+[package]
+name = "happy-wakey-cli"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.88"
+license = "MIT"
+description = "Shared Auth-aware command line client for Happy Wakey"
+repository = "https://github.com/happy-wakey/happy-wakey-cli"
+
+[dependencies]
+anyhow = "1"
+clap = { version = "4", features = ["derive", "env"] }
+serde_json = "1"
+shared-auth-client = { git = "https://github.com/shared-auth/shared-auth-clients.git", rev = "7aab653a1822e26122a16f8d31e501815fe86beb", package = "shared-auth-client" }
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+
+[lints.rust]
+unsafe_code = "forbid"
