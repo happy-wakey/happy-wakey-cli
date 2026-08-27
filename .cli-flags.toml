@@ -1,3 +1,7 @@
+[identity]
+service = "happy-wakey-cli"
+type_name = "CliEnv"
+
 [help]
 url = "https://github.com/happy-wakey/happy-wakey-cli"
 

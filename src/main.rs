@@ -1,5 +1,10 @@
 #![forbid(unsafe_code)]
 
+#[path = "../generated/rust/env.rs"]
+mod env;
+#[path = "../generated/rust/runtime.rs"]
+mod env_runtime;
+
 use std::{collections::HashMap, net::IpAddr, path::PathBuf, time::Duration};
 
 use anyhow::{anyhow, bail, Context, Result};
@@ -153,6 +158,8 @@ impl HappyWakeyClient {
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    let env_values = env_runtime::load_from_os();
+    let _ = &env_values;
     let raw_args = std::env::args().collect::<Vec<_>>();
     if raw_args.len() == 1 || raw_args.iter().any(|arg| arg == "--help" || arg == "-h") {
         print!("{USAGE}");
