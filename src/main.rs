@@ -1,6 +1,6 @@
 #![forbid(unsafe_code)]
 
-use std::{collections::HashMap, path::PathBuf, time::Duration};
+use std::{collections::HashMap, net::IpAddr, path::PathBuf, time::Duration};
 
 use anyhow::{anyhow, bail, Context, Result};
 use chrono::Utc;
@@ -391,7 +391,24 @@ fn validate_base_url(raw: &str, label: &str) -> Result<Url> {
     {
         bail!("{label} base URL must be a credential-free HTTPS authority");
     }
+    if public_numeric_host(url.host_str()) {
+        bail!("{label} base URL must use a DNS name, not a public IP");
+    }
     Ok(url)
+}
+
+fn public_numeric_host(host: Option<&str>) -> bool {
+    let Some(host) = host else {
+        return false;
+    };
+    let host = host
+        .strip_prefix('[')
+        .and_then(|inner| inner.strip_suffix(']'))
+        .unwrap_or(host);
+    if matches!(host, "127.0.0.1" | "localhost" | "::1") {
+        return false;
+    }
+    host.parse::<IpAddr>().is_ok()
 }
 
 fn access_token() -> Result<String> {
@@ -528,6 +545,8 @@ mod tests {
         assert!(validate_base_url("https://user@api.example.test", "API").is_err());
         assert!(validate_base_url("https://api.example.test/path", "API").is_err());
         assert!(validate_base_url("https://api.example.test", "API").is_ok());
+        assert!(validate_base_url("https://98.90.186.114", "API").is_err());
+        assert!(validate_base_url("https://[2001:db8::1]/", "API").is_err());
     }
 
     #[test]
