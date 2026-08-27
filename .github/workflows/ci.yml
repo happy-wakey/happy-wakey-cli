@@ -36,14 +36,11 @@ jobs:
           tar -xzf /tmp/zed.tar.gz -C /tmp
           /tmp/zed validate
       - run: cargo fmt --all -- --check
-      - name: Run native gates when the private Shared Auth source is available
-        shell: bash
+      - run: cargo test --all-targets --locked
+      - run: cargo clippy --all-targets --locked -- -D warnings
+      - run: cargo build --release --locked
+      - name: Smoke the packaged command surface
         run: |
           set -euo pipefail
-          export GIT_TERMINAL_PROMPT=0
-          if git ls-remote https://github.com/shared-auth/shared-auth-clients.git HEAD >/dev/null 2>&1; then
-            cargo test --all-targets --locked
-            cargo clippy --all-targets --locked -- -D warnings
-          else
-            echo '::warning::Native gates require approved cross-organization read access to shared-auth/shared-auth-clients.'
-          fi
+          cargo run --locked -- --version
+          cargo run --locked -- --help
