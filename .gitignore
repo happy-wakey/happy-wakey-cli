@@ -5,3 +5,5 @@ zed_modules/
 .env.*
 *.log
 .DS_Store
+env/dec
+/env/dec/

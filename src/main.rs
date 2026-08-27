@@ -10,11 +10,7 @@ use shared_auth_client::SharedAuthClient;
 struct Cli {
     /// Shared Auth customer-realm base URL. Plain HTTP is rejected except by
     /// the official client for its explicit loopback development profile.
-    #[arg(
-        long,
-        env = "HAPPY_WAKEY_SHARED_AUTH_BASE",
-        default_value = "https://auth.oresoftware.dev"
-    )]
+    #[arg(long, env = "HAPPY_WAKEY_SHARED_AUTH_BASE")]
     shared_auth_base: String,
 
     #[command(subcommand)]
