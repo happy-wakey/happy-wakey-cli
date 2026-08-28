@@ -5,6 +5,8 @@ import gleam/option.{type Option, None, Some}
 pub type CliEnvValues {
   CliEnvValues(
     api_base: String,
+    flags2env_config: Option(String),
+    happy_wakey_access_token: Option(String),
     pretty: String,
     shared_auth_base: String,
     enabled: String,
@@ -29,6 +31,8 @@ pub type CliEnvValues {
 pub fn load_from(lookup: fn(String) -> Option(String)) -> CliEnvValues {
   CliEnvValues(
     api_base: nonempty_or(lookup("HAPPY_WAKEY_API_BASE"), "https://api.happy-wakey.dev"),
+    flags2env_config: nonempty(lookup("FLAGS2ENV_CONFIG")),
+    happy_wakey_access_token: nonempty(lookup("HAPPY_WAKEY_ACCESS_TOKEN")),
     pretty: nonempty_or(lookup("HAPPY_WAKEY_PRETTY"), "false"),
     shared_auth_base: nonempty_or(lookup("HAPPY_WAKEY_SHARED_AUTH_BASE"), "https://auth.oresoftware.dev"),
     enabled: nonempty_or(lookup("HAPPY_WAKEY_ALARM_ENABLED"), "true"),

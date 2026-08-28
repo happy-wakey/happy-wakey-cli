@@ -2,6 +2,8 @@
 
 export interface CliEnvValues {
   readonly api_base: string;
+  readonly flags2env_config?: string;
+  readonly happy_wakey_access_token?: string;
   readonly pretty: boolean;
   readonly shared_auth_base: string;
   readonly enabled: boolean;
@@ -25,6 +27,8 @@ export interface CliEnvValues {
 export function loadFrom(lookup: (key: string) => string | undefined): CliEnvValues {
   return {
     api_base: nonEmpty(lookup("HAPPY_WAKEY_API_BASE")) ?? "https://api.happy-wakey.dev",
+    flags2env_config: nonEmpty(lookup("FLAGS2ENV_CONFIG")),
+    happy_wakey_access_token: nonEmpty(lookup("HAPPY_WAKEY_ACCESS_TOKEN")),
     pretty: parseBool(lookup("HAPPY_WAKEY_PRETTY"), false),
     shared_auth_base: nonEmpty(lookup("HAPPY_WAKEY_SHARED_AUTH_BASE")) ?? "https://auth.oresoftware.dev",
     enabled: parseBool(lookup("HAPPY_WAKEY_ALARM_ENABLED"), true),
@@ -93,4 +97,173 @@ function parseOptionalNumber(raw: string | undefined, asInt: boolean): number | 
   }
   const parsed = asInt ? Number.parseInt(value, 10) : Number.parseFloat(value);
   return Number.isNaN(parsed) ? undefined : parsed;
+}
+
+function nonempty(raw: string | undefined): string | undefined {
+  const value = raw?.trim();
+  return value ? value : undefined;
+}
+
+export function requireEnv(
+  name: string,
+  expectedType: string,
+  examples: readonly string[],
+  value: string | undefined,
+): string {
+  const trimmed = nonempty(value);
+  if (trimmed) {
+    return trimmed;
+  }
+  throw new MissingEnvError({ name, expectedType, examples });
+}
+
+function pick(
+  keys: readonly string[],
+  order: readonly string[],
+  shell: Record<string, string | undefined>,
+  dotenv: Record<string, string | undefined>,
+  flags: Record<string, string | undefined>,
+  fallback: string | undefined,
+): string | undefined {
+  for (const source of order) {
+    const map = source === "flags" ? flags : source === "env_file" ? dotenv : shell;
+    for (const key of keys) {
+      const value = nonempty(map[key]);
+      if (value !== undefined) {
+        return value;
+      }
+    }
+  }
+  return nonempty(fallback);
+}
+
+function unquote(value: string): string {
+  const trimmed = value.trim();
+  if (
+    (trimmed.startsWith("\"") && trimmed.endsWith("\"")) ||
+    (trimmed.startsWith("'") && trimmed.endsWith("'"))
+  ) {
+    return trimmed.slice(1, -1);
+  }
+  return trimmed;
+}
+
+export function parseDotenv(text: string): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const raw of text.split(/\r?\n/)) {
+    const line = raw.trim();
+    if (!line || line.startsWith("#")) {
+      continue;
+    }
+    const body = line.startsWith("export ") ? line.slice("export ".length).trim() : line;
+    const eq = body.indexOf("=");
+    if (eq <= 0) {
+      continue;
+    }
+    const key = body.slice(0, eq).trim();
+    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) {
+      continue;
+    }
+    out[key] = unquote(body.slice(eq + 1));
+  }
+  return out;
+}
+
+function dotenvEnabled(): boolean {
+  const value = typeof process !== "undefined" ? process.env.FLAGS2ENV_DOTENV : undefined;
+  return !["0", "false", "FALSE", "no", "NO"].includes(value?.trim() ?? "");
+}
+
+export function loadDotenvFiles(files: readonly string[]): Record<string, string> {
+  if (!dotenvEnabled() || typeof process === "undefined") {
+    return {};
+  }
+  let fs: { readFileSync: (path: string, encoding: string) => string } | undefined;
+  try {
+    fs = require("fs") as { readFileSync: (path: string, encoding: string) => string };
+  } catch {
+    return {};
+  }
+  return files.reduce<Record<string, string>>((acc, path) => {
+    try {
+      return { ...acc, ...parseDotenv(fs!.readFileSync(path, "utf8")) };
+    } catch {
+      return acc;
+    }
+  }, {});
+}
+export interface MissingEnv {
+  readonly name: string;
+  readonly expectedType: string;
+  readonly examples: readonly string[];
+}
+
+export class MissingEnvError extends Error implements MissingEnv {
+  readonly name: string;
+  readonly expectedType: string;
+  readonly examples: readonly string[];
+  constructor(fields: MissingEnv) {
+    super(`missing required environment variable ${fields.name}\n  expected type: ${fields.expectedType}\n  examples: ${fields.examples.join(", ")}`);
+    this.name = fields.name;
+    this.expectedType = fields.expectedType;
+    this.examples = fields.examples;
+  }
+}
+
+/** Resolve env-key -> value. Empty values fall through to the next source. */
+export function loadEnvMap(
+  shell: Record<string, string | undefined>,
+  dotenv: Record<string, string | undefined>,
+  flags: Record<string, string | undefined> = {},
+): Record<string, string> {
+  const out: Record<string, string> = {};
+  const api_base = pick(["HAPPY_WAKEY_API_BASE"], ["flags", "env_shell", "env_file"], shell, dotenv, flags, "https://api.happy-wakey.dev");
+  if (api_base !== undefined) out["HAPPY_WAKEY_API_BASE"] = api_base;
+  const flags2env_config = pick(["FLAGS2ENV_CONFIG"], ["flags", "env_shell", "env_file"], shell, dotenv, flags, undefined);
+  if (flags2env_config !== undefined) out["FLAGS2ENV_CONFIG"] = flags2env_config;
+  const happy_wakey_access_token = pick(["HAPPY_WAKEY_ACCESS_TOKEN"], ["flags", "env_shell", "env_file"], shell, dotenv, flags, undefined);
+  if (happy_wakey_access_token !== undefined) out["HAPPY_WAKEY_ACCESS_TOKEN"] = happy_wakey_access_token;
+  const pretty = pick(["HAPPY_WAKEY_PRETTY"], ["flags", "env_shell", "env_file"], shell, dotenv, flags, "false");
+  if (pretty !== undefined) out["HAPPY_WAKEY_PRETTY"] = pretty;
+  const shared_auth_base = pick(["HAPPY_WAKEY_SHARED_AUTH_BASE"], ["flags", "env_shell", "env_file"], shell, dotenv, flags, "https://auth.oresoftware.dev");
+  if (shared_auth_base !== undefined) out["HAPPY_WAKEY_SHARED_AUTH_BASE"] = shared_auth_base;
+  const enabled = pick(["HAPPY_WAKEY_ALARM_ENABLED"], ["flags", "env_shell", "env_file"], shell, dotenv, flags, "true");
+  if (enabled !== undefined) out["HAPPY_WAKEY_ALARM_ENABLED"] = enabled;
+  const gradual_seconds = pick(["HAPPY_WAKEY_ALARM_GRADUAL_SECONDS"], ["flags", "env_shell", "env_file"], shell, dotenv, flags, "30");
+  if (gradual_seconds !== undefined) out["HAPPY_WAKEY_ALARM_GRADUAL_SECONDS"] = gradual_seconds;
+  const label = pick(["HAPPY_WAKEY_ALARM_LABEL"], ["flags", "env_shell", "env_file"], shell, dotenv, flags, undefined);
+  if (label !== undefined) out["HAPPY_WAKEY_ALARM_LABEL"] = label;
+  const local_time = pick(["HAPPY_WAKEY_ALARM_LOCAL_TIME"], ["flags", "env_shell", "env_file"], shell, dotenv, flags, undefined);
+  if (local_time !== undefined) out["HAPPY_WAKEY_ALARM_LOCAL_TIME"] = local_time;
+  const sound = pick(["HAPPY_WAKEY_ALARM_SOUND"], ["flags", "env_shell", "env_file"], shell, dotenv, flags, "bell");
+  if (sound !== undefined) out["HAPPY_WAKEY_ALARM_SOUND"] = sound;
+  const tags = pick(["HAPPY_WAKEY_ALARM_TAGS"], ["flags", "env_shell", "env_file"], shell, dotenv, flags, undefined);
+  if (tags !== undefined) out["HAPPY_WAKEY_ALARM_TAGS"] = tags;
+  const time_zone = pick(["HAPPY_WAKEY_ALARM_TIME_ZONE"], ["flags", "env_shell", "env_file"], shell, dotenv, flags, undefined);
+  if (time_zone !== undefined) out["HAPPY_WAKEY_ALARM_TIME_ZONE"] = time_zone;
+  const transition_id = pick(["HAPPY_WAKEY_TRANSITION_ID"], ["flags", "env_shell", "env_file"], shell, dotenv, flags, undefined);
+  if (transition_id !== undefined) out["HAPPY_WAKEY_TRANSITION_ID"] = transition_id;
+  const volume = pick(["HAPPY_WAKEY_ALARM_VOLUME"], ["flags", "env_shell", "env_file"], shell, dotenv, flags, "0.8");
+  if (volume !== undefined) out["HAPPY_WAKEY_ALARM_VOLUME"] = volume;
+  const weekdays = pick(["HAPPY_WAKEY_ALARM_WEEKDAYS"], ["flags", "env_shell", "env_file"], shell, dotenv, flags, undefined);
+  if (weekdays !== undefined) out["HAPPY_WAKEY_ALARM_WEEKDAYS"] = weekdays;
+  const client_time = pick(["HAPPY_WAKEY_CLIENT_TIME"], ["flags", "env_shell", "env_file"], shell, dotenv, flags, undefined);
+  if (client_time !== undefined) out["HAPPY_WAKEY_CLIENT_TIME"] = client_time;
+  const event = pick(["HAPPY_WAKEY_TRANSITION_EVENT"], ["flags", "env_shell", "env_file"], shell, dotenv, flags, undefined);
+  if (event !== undefined) out["HAPPY_WAKEY_TRANSITION_EVENT"] = event;
+  const expected_generation = pick(["HAPPY_WAKEY_EXPECTED_GENERATION"], ["flags", "env_shell", "env_file"], shell, dotenv, flags, undefined);
+  if (expected_generation !== undefined) out["HAPPY_WAKEY_EXPECTED_GENERATION"] = expected_generation;
+  const occurrence_id = pick(["HAPPY_WAKEY_OCCURRENCE_ID"], ["flags", "env_shell", "env_file"], shell, dotenv, flags, undefined);
+  if (occurrence_id !== undefined) out["HAPPY_WAKEY_OCCURRENCE_ID"] = occurrence_id;
+  const snooze_until = pick(["HAPPY_WAKEY_SNOOZE_UNTIL"], ["flags", "env_shell", "env_file"], shell, dotenv, flags, undefined);
+  if (snooze_until !== undefined) out["HAPPY_WAKEY_SNOOZE_UNTIL"] = snooze_until;
+  return out;
+}
+
+const DOTENV_FILES: readonly string[] = [".env"];
+/** Effectful overlay: `.env` files then `process.env`, ranked per key. */
+export function loadEnvMapFromOs(
+  shell: Record<string, string | undefined> = typeof process !== "undefined" ? process.env : {},
+): Record<string, string> {
+  return loadEnvMap(shell, loadDotenvFiles(DOTENV_FILES), {});
 }

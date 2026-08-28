@@ -5,6 +5,8 @@
 #[derive(Clone, Debug, PartialEq)]
 pub struct CliEnvValues {
     pub api_base: String,
+    pub flags2env_config: Option<String>,
+    pub happy_wakey_access_token: Option<String>,
     pub pretty: bool,
     pub shared_auth_base: String,
     pub enabled: bool,
@@ -28,6 +30,8 @@ pub struct CliEnvValues {
 pub fn load_from(lookup: impl Fn(&str) -> Option<String>) -> CliEnvValues {
     CliEnvValues {
         api_base: lookup("HAPPY_WAKEY_API_BASE").filter(|value| !value.is_empty()).unwrap_or_else(|| "https://api.happy-wakey.dev".to_string()),
+        flags2env_config: lookup("FLAGS2ENV_CONFIG").filter(|value| !value.is_empty()),
+        happy_wakey_access_token: lookup("HAPPY_WAKEY_ACCESS_TOKEN").filter(|value| !value.is_empty()),
         pretty: parse_bool(lookup("HAPPY_WAKEY_PRETTY"), false),
         shared_auth_base: lookup("HAPPY_WAKEY_SHARED_AUTH_BASE").filter(|value| !value.is_empty()).unwrap_or_else(|| "https://auth.oresoftware.dev".to_string()),
         enabled: parse_bool(lookup("HAPPY_WAKEY_ALARM_ENABLED"), true),
@@ -67,4 +71,217 @@ fn parse_int(raw: Option<String>, default: i64) -> i64 {
 
 fn parse_float(raw: Option<String>, default: f64) -> f64 {
     raw.and_then(|value| value.parse().ok()).unwrap_or(default)
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MissingEnv {
+    pub name: &'static str,
+    pub expected_type: &'static str,
+    pub examples: &'static [&'static str],
+}
+
+impl std::fmt::Display for MissingEnv {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "missing required environment variable {}\n  expected type: {}\n  examples: {}", self.name, self.expected_type, self.examples.join(", "))
+    }
+}
+
+impl std::error::Error for MissingEnv {}
+
+fn nonempty(raw: Option<&str>) -> Option<String> {
+    raw.map(str::trim).filter(|value| !value.is_empty()).map(str::to_string)
+}
+
+fn require_env(
+    name: &'static str,
+    expected_type: &'static str,
+    examples: &'static [&'static str],
+    value: Option<String>,
+) -> Result<String, MissingEnv> {
+    match nonempty(value.as_deref()) {
+        Some(value) => Ok(value),
+        None => Err(MissingEnv {
+            name,
+            expected_type,
+            examples,
+        }),
+    }
+}
+
+fn pick(
+    keys: &[&str],
+    order: &[&str],
+    shell: &std::collections::BTreeMap<String, String>,
+    dotenv: &std::collections::BTreeMap<String, String>,
+    flags: &std::collections::BTreeMap<String, String>,
+    default: Option<&str>,
+) -> Option<String> {
+    for source in order {
+        let map = match *source {
+            "flags" => flags,
+            "env_file" => dotenv,
+            _ => shell,
+        };
+        for key in keys {
+            if let Some(value) = nonempty(map.get(*key).map(String::as_str)) {
+                return Some(value);
+            }
+        }
+    }
+    nonempty(default)
+}
+
+fn unquote(value: &str) -> String {
+    let trimmed = value.trim();
+    if trimmed.len() >= 2 {
+        let bytes = trimmed.as_bytes();
+        if (bytes[0] == b'"' && bytes[trimmed.len() - 1] == b'"')
+            || (bytes[0] == b'\'' && bytes[trimmed.len() - 1] == b'\'')
+        {
+            return trimmed[1..trimmed.len() - 1].to_string();
+        }
+    }
+    trimmed.to_string()
+}
+
+fn parse_dotenv(text: &str) -> std::collections::BTreeMap<String, String> {
+    let mut out = std::collections::BTreeMap::new();
+    for raw in text.lines() {
+        let line = raw.trim();
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        let line = line.strip_prefix("export ").map(str::trim).unwrap_or(line);
+        let Some((key, value)) = line.split_once('=') else {
+            continue;
+        };
+        let key = key.trim();
+        if key.is_empty() {
+            continue;
+        }
+        let first = key.chars().next().unwrap_or('\0');
+        if !(first.is_ascii_alphabetic() || first == '_') {
+            continue;
+        }
+        out.insert(key.to_string(), unquote(value));
+    }
+    out
+}
+
+fn dotenv_enabled() -> bool {
+    match std::env::var("FLAGS2ENV_DOTENV") {
+        Ok(value) if matches!(value.trim(), "0" | "false" | "FALSE" | "no" | "NO") => false,
+        _ => true,
+    }
+}
+
+fn load_dotenv_files(files: &[&str]) -> std::collections::BTreeMap<String, String> {
+    if !dotenv_enabled() {
+        return std::collections::BTreeMap::new();
+    }
+    files.iter().fold(std::collections::BTreeMap::new(), |mut acc, path| {
+        if let Ok(text) = std::fs::read_to_string(path) {
+            acc.extend(parse_dotenv(&text));
+        }
+        acc
+    })
+}
+
+fn shell_env() -> std::collections::BTreeMap<String, String> {
+    std::env::vars().collect()
+}
+
+/// Resolve env-key -> value. Empty values fall through to the next source.
+pub fn load_env_map(
+    shell: &std::collections::BTreeMap<String, String>,
+    dotenv: &std::collections::BTreeMap<String, String>,
+    flags: &std::collections::BTreeMap<String, String>,
+) -> Result<std::collections::BTreeMap<String, String>, MissingEnv> {
+    let mut out = std::collections::BTreeMap::new();
+    let api_base = pick(&["HAPPY_WAKEY_API_BASE"], &["flags", "env_shell", "env_file"], shell, dotenv, flags, Some("https://api.happy-wakey.dev"));
+    if let Some(value) = api_base {
+        out.insert("HAPPY_WAKEY_API_BASE".to_string(), value);
+    }
+    let flags2env_config = pick(&["FLAGS2ENV_CONFIG"], &["flags", "env_shell", "env_file"], shell, dotenv, flags, None);
+    if let Some(value) = flags2env_config {
+        out.insert("FLAGS2ENV_CONFIG".to_string(), value);
+    }
+    let happy_wakey_access_token = pick(&["HAPPY_WAKEY_ACCESS_TOKEN"], &["flags", "env_shell", "env_file"], shell, dotenv, flags, None);
+    if let Some(value) = happy_wakey_access_token {
+        out.insert("HAPPY_WAKEY_ACCESS_TOKEN".to_string(), value);
+    }
+    let pretty = pick(&["HAPPY_WAKEY_PRETTY"], &["flags", "env_shell", "env_file"], shell, dotenv, flags, Some("false"));
+    if let Some(value) = pretty {
+        out.insert("HAPPY_WAKEY_PRETTY".to_string(), value);
+    }
+    let shared_auth_base = pick(&["HAPPY_WAKEY_SHARED_AUTH_BASE"], &["flags", "env_shell", "env_file"], shell, dotenv, flags, Some("https://auth.oresoftware.dev"));
+    if let Some(value) = shared_auth_base {
+        out.insert("HAPPY_WAKEY_SHARED_AUTH_BASE".to_string(), value);
+    }
+    let enabled = pick(&["HAPPY_WAKEY_ALARM_ENABLED"], &["flags", "env_shell", "env_file"], shell, dotenv, flags, Some("true"));
+    if let Some(value) = enabled {
+        out.insert("HAPPY_WAKEY_ALARM_ENABLED".to_string(), value);
+    }
+    let gradual_seconds = pick(&["HAPPY_WAKEY_ALARM_GRADUAL_SECONDS"], &["flags", "env_shell", "env_file"], shell, dotenv, flags, Some("30"));
+    if let Some(value) = gradual_seconds {
+        out.insert("HAPPY_WAKEY_ALARM_GRADUAL_SECONDS".to_string(), value);
+    }
+    let label = pick(&["HAPPY_WAKEY_ALARM_LABEL"], &["flags", "env_shell", "env_file"], shell, dotenv, flags, None);
+    if let Some(value) = label {
+        out.insert("HAPPY_WAKEY_ALARM_LABEL".to_string(), value);
+    }
+    let local_time = pick(&["HAPPY_WAKEY_ALARM_LOCAL_TIME"], &["flags", "env_shell", "env_file"], shell, dotenv, flags, None);
+    if let Some(value) = local_time {
+        out.insert("HAPPY_WAKEY_ALARM_LOCAL_TIME".to_string(), value);
+    }
+    let sound = pick(&["HAPPY_WAKEY_ALARM_SOUND"], &["flags", "env_shell", "env_file"], shell, dotenv, flags, Some("bell"));
+    if let Some(value) = sound {
+        out.insert("HAPPY_WAKEY_ALARM_SOUND".to_string(), value);
+    }
+    let tags = pick(&["HAPPY_WAKEY_ALARM_TAGS"], &["flags", "env_shell", "env_file"], shell, dotenv, flags, None);
+    if let Some(value) = tags {
+        out.insert("HAPPY_WAKEY_ALARM_TAGS".to_string(), value);
+    }
+    let time_zone = pick(&["HAPPY_WAKEY_ALARM_TIME_ZONE"], &["flags", "env_shell", "env_file"], shell, dotenv, flags, None);
+    if let Some(value) = time_zone {
+        out.insert("HAPPY_WAKEY_ALARM_TIME_ZONE".to_string(), value);
+    }
+    let transition_id = pick(&["HAPPY_WAKEY_TRANSITION_ID"], &["flags", "env_shell", "env_file"], shell, dotenv, flags, None);
+    if let Some(value) = transition_id {
+        out.insert("HAPPY_WAKEY_TRANSITION_ID".to_string(), value);
+    }
+    let volume = pick(&["HAPPY_WAKEY_ALARM_VOLUME"], &["flags", "env_shell", "env_file"], shell, dotenv, flags, Some("0.8"));
+    if let Some(value) = volume {
+        out.insert("HAPPY_WAKEY_ALARM_VOLUME".to_string(), value);
+    }
+    let weekdays = pick(&["HAPPY_WAKEY_ALARM_WEEKDAYS"], &["flags", "env_shell", "env_file"], shell, dotenv, flags, None);
+    if let Some(value) = weekdays {
+        out.insert("HAPPY_WAKEY_ALARM_WEEKDAYS".to_string(), value);
+    }
+    let client_time = pick(&["HAPPY_WAKEY_CLIENT_TIME"], &["flags", "env_shell", "env_file"], shell, dotenv, flags, None);
+    if let Some(value) = client_time {
+        out.insert("HAPPY_WAKEY_CLIENT_TIME".to_string(), value);
+    }
+    let event = pick(&["HAPPY_WAKEY_TRANSITION_EVENT"], &["flags", "env_shell", "env_file"], shell, dotenv, flags, None);
+    if let Some(value) = event {
+        out.insert("HAPPY_WAKEY_TRANSITION_EVENT".to_string(), value);
+    }
+    let expected_generation = pick(&["HAPPY_WAKEY_EXPECTED_GENERATION"], &["flags", "env_shell", "env_file"], shell, dotenv, flags, None);
+    if let Some(value) = expected_generation {
+        out.insert("HAPPY_WAKEY_EXPECTED_GENERATION".to_string(), value);
+    }
+    let occurrence_id = pick(&["HAPPY_WAKEY_OCCURRENCE_ID"], &["flags", "env_shell", "env_file"], shell, dotenv, flags, None);
+    if let Some(value) = occurrence_id {
+        out.insert("HAPPY_WAKEY_OCCURRENCE_ID".to_string(), value);
+    }
+    let snooze_until = pick(&["HAPPY_WAKEY_SNOOZE_UNTIL"], &["flags", "env_shell", "env_file"], shell, dotenv, flags, None);
+    if let Some(value) = snooze_until {
+        out.insert("HAPPY_WAKEY_SNOOZE_UNTIL".to_string(), value);
+    }
+    Ok(out)
+}
+
+/// Effectful overlay: `.env` files then the process environment, ranked per key.
+pub fn load_env_map_from_os() -> Result<std::collections::BTreeMap<String, String>, MissingEnv> {
+    load_env_map(&shell_env(), &load_dotenv_files(&[".env"]), &std::collections::BTreeMap::new())
 }

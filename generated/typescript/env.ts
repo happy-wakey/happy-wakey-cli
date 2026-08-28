@@ -3,6 +3,8 @@
 export const SERVICE = "happy-wakey-cli" as const;
 export const API_BASE = "HAPPY_WAKEY_API_BASE" as const;
 export const API_BASE_DEFAULT = "https://api.happy-wakey.dev" as const;
+export const FLAGS2ENV_CONFIG = "FLAGS2ENV_CONFIG" as const;
+export const HAPPY_WAKEY_ACCESS_TOKEN = "HAPPY_WAKEY_ACCESS_TOKEN" as const;
 export const PRETTY = "HAPPY_WAKEY_PRETTY" as const;
 export const PRETTY_DEFAULT = "false" as const;
 export const SHARED_AUTH_BASE = "HAPPY_WAKEY_SHARED_AUTH_BASE" as const;
@@ -29,6 +31,8 @@ export const SNOOZE_UNTIL = "HAPPY_WAKEY_SNOOZE_UNTIL" as const;
 
 export interface CliEnv {
   readonly HAPPY_WAKEY_API_BASE: string;
+  readonly FLAGS2ENV_CONFIG?: string;
+  readonly HAPPY_WAKEY_ACCESS_TOKEN?: string;
   readonly HAPPY_WAKEY_PRETTY: boolean;
   readonly HAPPY_WAKEY_SHARED_AUTH_BASE: string;
   readonly HAPPY_WAKEY_ALARM_ENABLED: boolean;
@@ -50,6 +54,8 @@ export interface CliEnv {
 
 export const EnvKeys = {
   API_BASE: API_BASE,
+  FLAGS2ENV_CONFIG: FLAGS2ENV_CONFIG,
+  HAPPY_WAKEY_ACCESS_TOKEN: HAPPY_WAKEY_ACCESS_TOKEN,
   PRETTY: PRETTY,
   SHARED_AUTH_BASE: SHARED_AUTH_BASE,
   ENABLED: ENABLED,

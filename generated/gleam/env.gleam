@@ -5,6 +5,10 @@ pub const service = "happy-wakey-cli"
 pub const api_base = "HAPPY_WAKEY_API_BASE"
 pub const api_base_default = "https://api.happy-wakey.dev"
 
+pub const flags2env_config = "FLAGS2ENV_CONFIG"
+
+pub const happy_wakey_access_token = "HAPPY_WAKEY_ACCESS_TOKEN"
+
 pub const pretty = "HAPPY_WAKEY_PRETTY"
 pub const pretty_default = "false"
 
@@ -48,6 +52,8 @@ pub const snooze_until = "HAPPY_WAKEY_SNOOZE_UNTIL"
 pub type CliEnv {
   CliEnv(
     api_base: String,
+    flags2env_config: String,
+    happy_wakey_access_token: String,
     pretty: Bool,
     shared_auth_base: String,
     enabled: Bool,

@@ -6,6 +6,8 @@ final class CliEnv {
   static const String service = 'happy-wakey-cli';
   static const String apiBase = 'HAPPY_WAKEY_API_BASE';
   static const String apiBaseDefault = 'https://api.happy-wakey.dev';
+  static const String flags2envConfig = 'FLAGS2ENV_CONFIG';
+  static const String happyWakeyAccessToken = 'HAPPY_WAKEY_ACCESS_TOKEN';
   static const String pretty = 'HAPPY_WAKEY_PRETTY';
   static const String prettyDefault = 'false';
   static const String sharedAuthBase = 'HAPPY_WAKEY_SHARED_AUTH_BASE';

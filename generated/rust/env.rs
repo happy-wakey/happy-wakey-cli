@@ -4,6 +4,8 @@
 pub const SERVICE: &str = "happy-wakey-cli";
 pub const API_BASE: &str = "HAPPY_WAKEY_API_BASE";
 pub const API_BASE_DEFAULT: &str = "https://api.happy-wakey.dev";
+pub const FLAGS2ENV_CONFIG: &str = "FLAGS2ENV_CONFIG";
+pub const HAPPY_WAKEY_ACCESS_TOKEN: &str = "HAPPY_WAKEY_ACCESS_TOKEN";
 pub const PRETTY: &str = "HAPPY_WAKEY_PRETTY";
 pub const PRETTY_DEFAULT: &str = "false";
 pub const SHARED_AUTH_BASE: &str = "HAPPY_WAKEY_SHARED_AUTH_BASE";
@@ -31,6 +33,10 @@ pub const SNOOZE_UNTIL: &str = "HAPPY_WAKEY_SNOOZE_UNTIL";
 /// Compile-time env key names from `.cli-flags.toml`.
 pub struct CliEnv {
     pub api_base: &'static str,
+    /// Runtime environment key FLAGS2ENV_CONFIG.
+    pub flags2env_config: &'static str,
+    /// Runtime environment key HAPPY_WAKEY_ACCESS_TOKEN.
+    pub happy_wakey_access_token: &'static str,
     pub pretty: &'static str,
     pub shared_auth_base: &'static str,
     pub enabled: &'static str,
@@ -53,6 +59,8 @@ pub struct CliEnv {
 impl CliEnv {
     pub const KEYS: Self = Self {
         api_base: API_BASE,
+        flags2env_config: FLAGS2ENV_CONFIG,
+        happy_wakey_access_token: HAPPY_WAKEY_ACCESS_TOKEN,
         pretty: PRETTY,
         shared_auth_base: SHARED_AUTH_BASE,
         enabled: ENABLED,

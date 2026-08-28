@@ -158,8 +158,6 @@ impl HappyWakeyClient {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let env_values = env_runtime::load_from_os();
-    let _ = &env_values;
     let raw_args = std::env::args().collect::<Vec<_>>();
     if raw_args.len() == 1 || raw_args.iter().any(|arg| arg == "--help" || arg == "-h") {
         print!("{USAGE}");
