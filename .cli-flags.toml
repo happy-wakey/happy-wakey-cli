@@ -1,3 +1,7 @@
+[identity]
+service = "happy-wakey-cli"
+type_name = "CliEnv"
+
 [help]
 url = "https://github.com/happy-wakey/happy-wakey-cli"
 
@@ -133,3 +137,16 @@ type = "string"
 env = "HAPPY_WAKEY_CLIENT_TIME"
 aliases = ["client-time"]
 type = "string"
+
+
+[flags.flags2env-config]
+env = "FLAGS2ENV_CONFIG"
+long = "flags2env-config"
+type = "string"
+help = "Runtime environment key FLAGS2ENV_CONFIG."
+
+[flags.happy-wakey-access-token]
+env = "HAPPY_WAKEY_ACCESS_TOKEN"
+long = "happy-wakey-access-token"
+type = "string"
+help = "Runtime environment key HAPPY_WAKEY_ACCESS_TOKEN."

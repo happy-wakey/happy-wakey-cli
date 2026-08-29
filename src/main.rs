@@ -1,5 +1,10 @@
 #![forbid(unsafe_code)]
 
+#[path = "../generated/rust/env.rs"]
+mod env;
+#[path = "../generated/rust/runtime.rs"]
+mod env_runtime;
+
 use std::{collections::HashMap, net::IpAddr, path::PathBuf, time::Duration};
 
 use anyhow::{anyhow, bail, Context, Result};
