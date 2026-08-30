@@ -5,6 +5,12 @@ the Happy Wakey alarm API. It uses the canonical versioned Shared Auth HTTPS
 endpoints with redirects disabled and bounded streaming responses, and imports
 all alarm request/response bodies from `happy-wakey-interfaces`.
 
+The command boundary is parsed exclusively by `flags-2-env`. Command handlers
+compose typed request builders and bounded HTTP adapters; URLs, alarm payloads,
+and lifecycle transitions are validated by pure functions before effects run.
+Ores telemetry records only a closed command classification and success/failure
+bit—never argv, bearer tokens, request bodies, or response bodies.
+
 The CLI supports public capability discovery, credential verification,
 subject-scoped alarm listing and creation, and generation-fenced occurrence
 transitions. Access tokens are accepted only through

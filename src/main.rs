@@ -15,6 +15,7 @@ use happy_wakey_interfaces::{
     Alarm, AlarmTransitionEvent, CreateAlarmRequest, TransitionAlarmRequest,
     TransitionAlarmResponse,
 };
+use next_loggers::{json as log_json, Logger, Map, Options};
 use reqwest::{redirect::Policy, Client, Response, StatusCode, Url};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -159,6 +160,17 @@ impl HappyWakeyClient {
 #[tokio::main]
 async fn main() -> Result<()> {
     let raw_args = std::env::args().collect::<Vec<_>>();
+    let operation = operation_hint(&raw_args);
+    let telemetry = Logger::new(Options {
+        app_name: "happy-wakey-cli".into(),
+        ..Options::default()
+    });
+    let outcome = run(raw_args).await;
+    emit_cli_outcome(&telemetry, operation, outcome.is_err());
+    outcome
+}
+
+async fn run(raw_args: Vec<String>) -> Result<()> {
     if raw_args.len() == 1 || raw_args.iter().any(|arg| arg == "--help" || arg == "-h") {
         print!("{USAGE}");
         return Ok(());
@@ -205,6 +217,37 @@ async fn main() -> Result<()> {
     };
     print_json(&output, invocation.pretty)?;
     Ok(())
+}
+
+fn operation_hint(argv: &[String]) -> &'static str {
+    match (
+        argv.get(1).map(String::as_str),
+        argv.get(2).map(String::as_str),
+    ) {
+        (Some("capabilities"), _) => "capabilities",
+        (Some("verify"), _) => "verify",
+        (Some("alarms"), Some("list")) => "alarms.list",
+        (Some("alarms"), Some("create")) => "alarms.create",
+        (Some("occurrences"), Some("transition")) => "occurrences.transition",
+        (Some("--help" | "-h"), _) | (None, _) => "help",
+        (Some("--version" | "-V"), _) => "version",
+        _ => "invalid",
+    }
+}
+
+fn emit_cli_outcome(logger: &Logger, operation: &str, failed: bool) {
+    let mut fields = Map::new();
+    fields.insert("operation".into(), log_json!(operation));
+    fields.insert("failed".into(), log_json!(failed));
+    let event = if failed {
+        logger.error(vec![log_json!("happy_wakey.cli.command")])
+    } else {
+        logger.info(vec![log_json!("happy_wakey.cli.command")])
+    };
+    let _ = event
+        .add_fields(fields)
+        .add_tags(["happy-wakey", "cli"])
+        .send();
 }
 
 fn parse_invocation(argv: &[String]) -> Result<Invocation> {
@@ -542,6 +585,18 @@ mod tests {
         .to_string();
         assert!(error.contains("1 unknown option"));
         assert!(!error.contains("do-not-print-this"));
+    }
+
+    #[test]
+    fn telemetry_operation_hint_never_includes_argument_values() {
+        let args = strings(&[
+            "happy-wakey",
+            "verify",
+            "--access-token",
+            "credential-that-must-not-be-logged",
+        ]);
+        assert_eq!(operation_hint(&args), "verify");
+        assert!(!operation_hint(&args).contains("credential"));
     }
 
     #[test]
