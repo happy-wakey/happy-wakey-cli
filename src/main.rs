@@ -554,11 +554,11 @@ mod tests {
 
     #[test]
     fn local_time_parser_is_total_and_bounded() {
-        assert!(valid_local_time("07:30"));
-        assert!(valid_local_time("23:59:59"));
-        assert!(!valid_local_time("24:00"));
-        assert!(!valid_local_time("7:30"));
-        assert!(!valid_local_time("noon"));
+        assert!(alarm_draft::parse_local_time("07:30").is_ok());
+        assert!(alarm_draft::parse_local_time("23:59:59").is_ok());
+        assert!(!alarm_draft::parse_local_time("24:00").is_ok());
+        assert!(!alarm_draft::parse_local_time("7:30").is_ok());
+        assert!(!alarm_draft::parse_local_time("noon").is_ok());
     }
 
     #[test]
