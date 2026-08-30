@@ -472,9 +472,6 @@ fn parse_json_array<T: DeserializeOwned>(
     serde_json::from_str(required(values, key)?).map_err(|_| anyhow!("{key} must be a JSON array"))
 }
 
-fn valid_local_time(value: &str) -> bool {
-    alarm_draft::parse_local_time(value).is_ok()
-}
 
 fn validate_uuid(value: &str, label: &str) -> Result<()> {
     Uuid::parse_str(value)
