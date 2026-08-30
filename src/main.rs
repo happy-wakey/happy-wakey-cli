@@ -1,5 +1,7 @@
 #![forbid(unsafe_code)]
 
+mod alarm_draft;
+
 #[path = "../generated/rust/env.rs"]
 mod env;
 #[path = "../generated/rust/runtime.rs"]
@@ -283,56 +285,21 @@ fn create_alarm_request(values: &HashMap<String, String>) -> Result<CreateAlarmR
         .cloned()
         .unwrap_or_else(|| Uuid::new_v4().to_string());
     validate_uuid(&transition_id, "transition ID")?;
-    let label = bounded_text(required(values, "HAPPY_WAKEY_ALARM_LABEL")?, 120, "label")?;
-    let local_time = required(values, "HAPPY_WAKEY_ALARM_LOCAL_TIME")?.to_owned();
-    if !valid_local_time(&local_time) {
-        bail!("local time must be HH:MM or HH:MM:SS");
-    }
-    let time_zone = bounded_text(
-        required(values, "HAPPY_WAKEY_ALARM_TIME_ZONE")?,
-        64,
-        "time zone",
-    )?;
-    if time_zone.len() < 3 {
-        bail!("time zone must contain at least three characters");
-    }
-    let mut weekdays: Vec<u8> = parse_json_array(values, "HAPPY_WAKEY_ALARM_WEEKDAYS")?;
-    weekdays.sort_unstable();
-    weekdays.dedup();
-    if weekdays.is_empty() || weekdays.len() > 7 || weekdays.iter().any(|day| *day > 6) {
-        bail!("weekdays must contain one to seven unique values from 0 through 6");
-    }
-    let enabled = parse_bool(values, "HAPPY_WAKEY_ALARM_ENABLED")?;
-    let sound = bounded_text(required(values, "HAPPY_WAKEY_ALARM_SOUND")?, 128, "sound")?;
-    let volume = parse_number::<f32>(values, "HAPPY_WAKEY_ALARM_VOLUME")?;
-    if !volume.is_finite() || !(0.0..=1.0).contains(&volume) {
-        bail!("volume must be between 0 and 1");
-    }
-    let gradual_seconds = parse_number::<u32>(values, "HAPPY_WAKEY_ALARM_GRADUAL_SECONDS")?;
-    if gradual_seconds > 1800 {
-        bail!("gradual seconds must not exceed 1800");
-    }
-    let mut tags: Vec<String> = parse_json_array(values, "HAPPY_WAKEY_ALARM_TAGS")?;
-    for tag in &mut tags {
-        *tag = bounded_text(tag, 40, "tag")?;
-    }
-    tags.sort();
-    tags.dedup();
-    if tags.len() > 20 {
-        bail!("at most 20 unique tags are allowed");
-    }
-    Ok(CreateAlarmRequest {
-        transition_id,
-        label,
-        local_time,
-        time_zone,
-        weekdays,
-        enabled,
-        sound,
-        volume,
-        gradual_seconds,
-        tags,
-    })
+    let weekdays: Vec<u8> = parse_json_array(values, "HAPPY_WAKEY_ALARM_WEEKDAYS")?;
+    let tags: Vec<String> = parse_json_array(values, "HAPPY_WAKEY_ALARM_TAGS")?;
+    let draft = alarm_draft::AlarmDraft {
+        transition_id: &transition_id,
+        label: required(values, "HAPPY_WAKEY_ALARM_LABEL")?,
+        local_time: required(values, "HAPPY_WAKEY_ALARM_LOCAL_TIME")?,
+        time_zone: required(values, "HAPPY_WAKEY_ALARM_TIME_ZONE")?,
+        weekdays: &weekdays,
+        enabled: parse_bool(values, "HAPPY_WAKEY_ALARM_ENABLED")?,
+        sound: required(values, "HAPPY_WAKEY_ALARM_SOUND")?,
+        volume: parse_number::<f32>(values, "HAPPY_WAKEY_ALARM_VOLUME")?,
+        gradual_seconds: parse_number::<u32>(values, "HAPPY_WAKEY_ALARM_GRADUAL_SECONDS")?,
+        tags: &tags,
+    };
+    alarm_draft::build_create_alarm_request(draft).map_err(Into::into)
 }
 
 fn transition_request(values: &HashMap<String, String>) -> Result<(&str, TransitionAlarmRequest)> {
@@ -505,28 +472,8 @@ fn parse_json_array<T: DeserializeOwned>(
     serde_json::from_str(required(values, key)?).map_err(|_| anyhow!("{key} must be a JSON array"))
 }
 
-fn bounded_text(value: &str, max: usize, label: &str) -> Result<String> {
-    if value.is_empty()
-        || value.len() > max
-        || value.chars().any(|character| character.is_control())
-    {
-        bail!("{label} is empty, too long, or contains controls");
-    }
-    Ok(value.to_owned())
-}
-
 fn valid_local_time(value: &str) -> bool {
-    let parts = value.split(':').collect::<Vec<_>>();
-    if !matches!(parts.len(), 2 | 3) || parts.iter().any(|part| part.len() != 2) {
-        return false;
-    }
-    let parsed = parts
-        .iter()
-        .map(|part| part.parse::<u8>())
-        .collect::<std::result::Result<Vec<_>, _>>();
-    parsed.is_ok_and(|parts| {
-        parts[0] <= 23 && parts[1] <= 59 && parts.get(2).is_none_or(|second| *second <= 59)
-    })
+    alarm_draft::parse_local_time(value).is_ok()
 }
 
 fn validate_uuid(value: &str, label: &str) -> Result<()> {
