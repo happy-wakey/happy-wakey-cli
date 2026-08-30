@@ -472,7 +472,6 @@ fn parse_json_array<T: DeserializeOwned>(
     serde_json::from_str(required(values, key)?).map_err(|_| anyhow!("{key} must be a JSON array"))
 }
 
-
 fn validate_uuid(value: &str, label: &str) -> Result<()> {
     Uuid::parse_str(value)
         .map(|_| ())
