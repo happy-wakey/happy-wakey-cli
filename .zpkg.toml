@@ -12,7 +12,7 @@ url = "https://github.com/happy-wakey/happy-wakey-cli"
 
 [dependencies]
 "flags-2-env/flags-2-env" = "^0.3.0"
-"happy-wakey/happy-wakey-interfaces" = "^0.1.0"
+"happy-wakey/happy-wakey-interfaces" = "^0.2.0"
 "oresoftware/next-loggers-rust" = "^0.1.0"
 
 [targets.repository]
