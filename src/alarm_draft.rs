@@ -113,8 +113,8 @@ pub struct LocalTime<'a> {
 pub fn build_create_alarm_request(
     draft: AlarmDraft<'_>,
 ) -> Result<CreateAlarmRequest, AlarmDraftError> {
-    let transition_id = Uuid::parse_str(draft.transition_id)
-        .map_err(|_| AlarmDraftError::TransitionIdInvalid)?;
+    let transition_id =
+        Uuid::parse_str(draft.transition_id).map_err(|_| AlarmDraftError::TransitionIdInvalid)?;
     if transition_id.hyphenated().to_string() != draft.transition_id {
         return Err(AlarmDraftError::TransitionIdInvalid);
     }
