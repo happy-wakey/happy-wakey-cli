@@ -7,6 +7,7 @@ use std::collections::BTreeSet;
 use std::fmt;
 
 use happy_wakey_interfaces::CreateAlarmRequest;
+use uuid::Uuid;
 
 const MAX_LABEL_CHARS: usize = 120;
 const MAX_TIME_ZONE_CHARS: usize = 64;
@@ -41,6 +42,7 @@ pub enum AlarmDraftError {
     TooLong { field: DraftField, max: usize },
     TimeZoneTooShort,
     LocalTimeInvalid,
+    TransitionIdInvalid,
     WeekdaysInvalid,
     VolumeInvalid,
     GradualSecondsInvalid,
@@ -68,6 +70,7 @@ impl fmt::Display for AlarmDraftError {
                 write!(f, "time zone must contain at least three characters")
             }
             Self::LocalTimeInvalid => write!(f, "local time must be HH:MM or HH:MM:SS"),
+            Self::TransitionIdInvalid => write!(f, "transition ID must be a canonical UUID"),
             Self::WeekdaysInvalid => {
                 write!(
                     f,
@@ -110,6 +113,11 @@ pub struct LocalTime<'a> {
 pub fn build_create_alarm_request(
     draft: AlarmDraft<'_>,
 ) -> Result<CreateAlarmRequest, AlarmDraftError> {
+    let transition_id = Uuid::parse_str(draft.transition_id)
+        .map_err(|_| AlarmDraftError::TransitionIdInvalid)?;
+    if transition_id.hyphenated().to_string() != draft.transition_id {
+        return Err(AlarmDraftError::TransitionIdInvalid);
+    }
     let label = bounded_text(draft.label, MAX_LABEL_CHARS, DraftField::Label)?;
     let local_time = parse_local_time(draft.local_time)?;
     let time_zone = bounded_text(draft.time_zone, MAX_TIME_ZONE_CHARS, DraftField::TimeZone)?;
@@ -122,7 +130,7 @@ pub fn build_create_alarm_request(
     let gradual_seconds = accept_gradual_seconds(draft.gradual_seconds)?;
     let tags = normalize_tags(draft.tags)?;
     Ok(CreateAlarmRequest {
-        transition_id: draft.transition_id.to_owned(),
+        transition_id: transition_id.to_string(),
         label,
         local_time: local_time.as_text.to_owned(),
         time_zone,
@@ -341,6 +349,26 @@ mod tests {
         );
         let too_many: Vec<String> = (0..21).map(|index| format!("t{index:02}")).collect();
         assert_eq!(normalize_tags(&too_many), Err(AlarmDraftError::TooManyTags));
+    }
+
+    #[test]
+    fn rejects_noncanonical_or_empty_idempotency_keys() {
+        let mut candidate = draft("07:30", &[1], &[], 0.7, 0);
+        candidate.transition_id = "";
+        assert_eq!(
+            build_create_alarm_request(candidate.clone()),
+            Err(AlarmDraftError::TransitionIdInvalid)
+        );
+        candidate.transition_id = "not-a-uuid";
+        assert_eq!(
+            build_create_alarm_request(candidate.clone()),
+            Err(AlarmDraftError::TransitionIdInvalid)
+        );
+        candidate.transition_id = "11111111111141118111111111111111";
+        assert_eq!(
+            build_create_alarm_request(candidate),
+            Err(AlarmDraftError::TransitionIdInvalid)
+        );
     }
 
     #[test]
